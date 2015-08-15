@@ -97,27 +97,73 @@ public final class CodeGenerationUtils {
         }
         return type;
     }
+    
+    public static String getDescription(String parameterName, String commentString) {
+        String result  = "";
+        if (null != parameterName && null != commentString) {
+            int start = commentString.indexOf("@param");
+            if (start >= 0) {
+                String paramString = commentString.substring(start);
+                String[] paramStrings = paramString.split("@param");
+                for (String parameterString : paramStrings) {
+                    /**
+                     * Example such string is
+                     * key      key of the entry
+                     */
 
+                    String trimmedParameterString = parameterString.trim();
+                    if (trimmedParameterString.length() > parameterName.length() && trimmedParameterString.startsWith(parameterName)) {
+                        result = trimmedParameterString.substring(parameterName.length());
+                        int endIndex = result.indexOf('@');
+                        if (endIndex >= 0) {
+                            result = result.substring(0, endIndex);
+                        }
 
+                        // replace any new line with <br>
+                        result = result.replace("\n", "<br>");
 
-    public static String convertTypeToCSharp(String type) {
-        String getterString;
-        if (type.equals(DATA_FULL_NAME + " ")) {
-            getterString = "IData";
-        } else if (type.equals("java.lang.String")) {
-            getterString = "string";
-        } else if (type.equals("boolean")) {
-            getterString = "bool";
-        } else if (type.equals("java.util.List<" + DATA_FULL_NAME + " >")) {
-            getterString = "IList<IData>";
-        } else if (type.equals("java.util.Set<" + DATA_FULL_NAME + " >")) {
-            getterString = "ISet<IData>";
-        } else if (type.equals("java.util.Collection<" + DATA_FULL_NAME + " >")) {
-            getterString = "ICollection<IData>";
-        } else {
-            getterString = type;
+                        result = result.trim();
+
+                        break; // found the parameter, hence stop here
+                    }
+                }
+            }
         }
-        return getterString;
+        return result;
+    }
+
+    public static String getReturnDescription(String commentString) {
+        String result  = "";
+        final String RETURN_TAG = "@return";
+        int returnTagStartIndex = commentString.indexOf(RETURN_TAG);
+        if (returnTagStartIndex >= 0) {
+            int descriptionStartIndex = returnTagStartIndex + RETURN_TAG.length();
+            int nextTagIndex = commentString.indexOf("@", descriptionStartIndex);
+            if (nextTagIndex >= 0) {
+                result = commentString.substring(descriptionStartIndex, nextTagIndex);
+            } else {
+                result = commentString.substring(descriptionStartIndex);
+            }
+            result = result.trim();
+
+            // replace any new line with <br>
+            result = result.replace("\n", "<br>");
+        }
+        return result;
+    }
+
+    public static String getDistributedObjectName(String templateClassName) {
+        String result = templateClassName;
+
+        int startIndex = templateClassName.lastIndexOf('.');
+        if (startIndex >= 0) {
+            int endIndex = templateClassName.indexOf("CodecTemplate", startIndex);
+            if (endIndex > startIndex) {
+                result = templateClassName.substring(startIndex + 1, endIndex);
+            }
+        }
+
+        return result;
     }
 
 

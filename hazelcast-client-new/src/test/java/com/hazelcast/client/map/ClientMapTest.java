@@ -39,7 +39,9 @@ import com.hazelcast.nio.serialization.DataSerializable;
 import com.hazelcast.query.Predicate;
 import com.hazelcast.query.SqlPredicate;
 import com.hazelcast.security.UsernamePasswordCredentials;
+import com.hazelcast.test.AssertTask;
 import com.hazelcast.test.HazelcastParallelClassRunner;
+import com.hazelcast.test.annotation.ParallelTest;
 import com.hazelcast.test.annotation.QuickTest;
 import org.junit.After;
 import org.junit.Before;
@@ -60,6 +62,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static com.hazelcast.test.HazelcastTestSupport.assertOpenEventually;
+import static com.hazelcast.test.HazelcastTestSupport.assertTrueEventually;
 import static com.hazelcast.test.HazelcastTestSupport.randomString;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -68,7 +71,7 @@ import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 @RunWith(HazelcastParallelClassRunner.class)
-@Category(QuickTest.class)
+@Category({QuickTest.class, ParallelTest.class})
 public class ClientMapTest {
 
     private final TestHazelcastFactory hazelcastFactory = new TestHazelcastFactory();
@@ -311,8 +314,12 @@ public class ClientMapTest {
         final IMap map = createMap();
         map.put("key1", "value1", 1, TimeUnit.SECONDS);
         assertNotNull(map.get("key1"));
-        Thread.sleep(2000);
-        assertNull(map.get("key1"));
+        assertTrueEventually(new AssertTask() {
+            @Override
+            public void run() throws Exception {
+                assertNull(map.get("key1"));
+            }
+        });
     }
 
     @Test
@@ -327,7 +334,12 @@ public class ClientMapTest {
         final IMap map = createMap();
         assertNull(map.putIfAbsent("key1", "value1", 1, TimeUnit.SECONDS));
         assertEquals("value1", map.putIfAbsent("key1", "value3", 1, TimeUnit.SECONDS));
-        Thread.sleep(6000);
+        assertTrueEventually(new AssertTask() {
+            @Override
+            public void run() throws Exception {
+                assertNull(map.get("key1"));
+            }
+        });
         assertNull(map.putIfAbsent("key1", "value3", 1, TimeUnit.SECONDS));
         assertEquals("value3", map.putIfAbsent("key1", "value4", 1, TimeUnit.SECONDS));
     }
@@ -344,8 +356,12 @@ public class ClientMapTest {
         map.set("key1", "value3", 1, TimeUnit.SECONDS);
         assertEquals("value3", map.get("key1"));
 
-        Thread.sleep(2000);
-        assertNull(map.get("key1"));
+        assertTrueEventually(new AssertTask() {
+            @Override
+            public void run() throws Exception {
+                assertNull(map.get("key1"));
+            }
+        });
 
     }
 
@@ -499,6 +515,14 @@ public class ClientMapTest {
     }
 
     @Test
+    public void testExecuteOnKey() throws Exception {
+        final IMap map = createMap();
+        map.put(1, 1);
+        Object result = map.executeOnKey(1, new IncrementorEntryProcessor());
+        assertEquals(2, result);
+    }
+
+    @Test
     public void testSubmitToKey() throws Exception {
         final IMap map = createMap();
         map.put(1, 1);
@@ -520,10 +544,12 @@ public class ClientMapTest {
         final IMap map = createMap();
         map.put(1, 1);
         final CountDownLatch latch = new CountDownLatch(1);
+        final AtomicInteger result = new AtomicInteger();
         ExecutionCallback executionCallback = new ExecutionCallback() {
             @Override
             public void onResponse(Object response) {
                 latch.countDown();
+                result.set((Integer) response);
             }
 
             @Override
@@ -533,6 +559,7 @@ public class ClientMapTest {
 
         map.submitToKey(1, new IncrementorEntryProcessor(), executionCallback);
         assertTrue(latch.await(5, TimeUnit.SECONDS));
+        assertEquals(2, result.get());
         assertEquals(2, map.get(1));
     }
 

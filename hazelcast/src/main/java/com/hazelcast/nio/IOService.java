@@ -21,7 +21,6 @@ import com.hazelcast.internal.ascii.TextCommandService;
 import com.hazelcast.config.SSLConfig;
 import com.hazelcast.config.SocketInterceptorConfig;
 import com.hazelcast.config.SymmetricEncryptionConfig;
-import com.hazelcast.internal.metrics.MetricsRegistry;
 import com.hazelcast.logging.ILogger;
 import com.hazelcast.nio.serialization.Data;
 import com.hazelcast.nio.serialization.SerializationService;
@@ -30,15 +29,12 @@ import com.hazelcast.nio.tcp.PacketWriter;
 import com.hazelcast.nio.tcp.SocketChannelWrapperFactory;
 import com.hazelcast.nio.tcp.TcpIpConnection;
 import com.hazelcast.spi.EventService;
-import com.hazelcast.spi.impl.packettransceiver.PacketTransceiver;
 
 import java.util.Collection;
 
 public interface IOService {
 
     int KILO_BYTE = 1024;
-
-    MetricsRegistry getMetricRegistry();
 
     boolean isActive();
 
@@ -138,8 +134,6 @@ public interface IOService {
     SerializationService getSerializationService();
 
     SocketChannelWrapperFactory getSocketChannelWrapperFactory();
-
-    PacketTransceiver getPacketTransceiver();
 
     MemberSocketInterceptor getMemberSocketInterceptor();
 

@@ -1,6 +1,7 @@
 package com.hazelcast.util.scheduler;
 
 import com.hazelcast.test.HazelcastParallelClassRunner;
+import com.hazelcast.test.annotation.ParallelTest;
 import com.hazelcast.test.annotation.QuickTest;
 import org.junit.After;
 import org.junit.Test;
@@ -16,10 +17,10 @@ import java.util.concurrent.TimeUnit;
 import static com.hazelcast.util.scheduler.ScheduleType.FOR_EACH;
 import static com.hazelcast.util.scheduler.ScheduleType.POSTPONE;
 import static com.hazelcast.util.scheduler.ScheduleType.SCHEDULE_IF_NEW;
-import static junit.framework.TestCase.assertNull;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyLong;
@@ -27,7 +28,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 @RunWith(HazelcastParallelClassRunner.class)
-@Category(QuickTest.class)
+@Category({QuickTest.class, ParallelTest.class})
 public class SecondsBasedEntryTaskSchedulerTest {
 
     @Mock

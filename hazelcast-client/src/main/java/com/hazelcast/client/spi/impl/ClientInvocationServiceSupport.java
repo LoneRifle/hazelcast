@@ -104,11 +104,18 @@ abstract class ClientInvocationServiceSupport implements ClientInvocationService
         final byte[] bytes = ss.toBytes(invocation.getRequest());
         Packet packet = new Packet(bytes, invocation.getPartitionId());
         if (!isAllowedToSendRequest(connection, invocation.getRequest()) || !connection.write(packet)) {
-            final int callId = invocation.getRequest().getCallId();
-            deRegisterCallId(callId);
+            int callId = invocation.getRequest().getCallId();
+            ClientInvocation clientInvocation = deRegisterCallId(callId);
             deRegisterEventHandler(callId);
-            throw new IOException("Packet not send to " + connection.getRemoteEndpoint());
+            if (clientInvocation != null) {
+                throw new IOException("Packet not send to " + connection.getRemoteEndpoint());
+            } else {
+                if (logger.isFinestEnabled()) {
+                    logger.finest("Invocation not found to deregister for call id " + callId);
+                }
+            }
         }
+
         invocation.setSendConnection(connection);
     }
 
@@ -336,7 +343,7 @@ abstract class ClientInvocationServiceSupport implements ClientInvocationService
                 final Data response = clientResponse.getResponse();
                 handlePacket(response, clientResponse.isError(), callId);
             } catch (Exception e) {
-                logger.severe("Failed to process task: " + packet + " on responseThread :" + getName());
+                logger.severe("Failed to process task: " + packet + " on responseThread :" + getName(), e);
             } finally {
                 conn.decrementPacketCount();
             }

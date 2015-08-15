@@ -25,7 +25,6 @@ import com.hazelcast.instance.HazelcastThreadGroup;
 import com.hazelcast.instance.Node;
 import com.hazelcast.instance.OutOfMemoryErrorDispatcher;
 import com.hazelcast.internal.ascii.TextCommandService;
-import com.hazelcast.internal.metrics.MetricsRegistry;
 import com.hazelcast.logging.ILogger;
 import com.hazelcast.nio.serialization.Data;
 import com.hazelcast.nio.serialization.SerializationService;
@@ -53,11 +52,6 @@ public class NodeIOService implements IOService {
         this.node = node;
         this.nodeEngine = nodeEngine;
         this.packetTransceiver = nodeEngine.getPacketTransceiver();
-    }
-
-    @Override
-    public MetricsRegistry getMetricRegistry() {
-        return nodeEngine.getMetricsRegistry();
     }
 
     @Override
@@ -287,11 +281,6 @@ public class NodeIOService implements IOService {
     @Override
     public SocketChannelWrapperFactory getSocketChannelWrapperFactory() {
         return node.getNodeExtension().getSocketChannelWrapperFactory();
-    }
-
-    @Override
-    public PacketTransceiver getPacketTransceiver() {
-        return node.nodeEngine.getPacketTransceiver();
     }
 
     @Override

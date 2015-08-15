@@ -19,8 +19,11 @@ package com.hazelcast.client.map;
 import com.hazelcast.client.test.TestHazelcastFactory;
 import com.hazelcast.core.HazelcastInstance;
 import com.hazelcast.core.IMap;
+import com.hazelcast.map.EntryBackupProcessor;
+import com.hazelcast.map.EntryProcessor;
 import com.hazelcast.test.AssertTask;
 import com.hazelcast.test.HazelcastParallelClassRunner;
+import com.hazelcast.test.annotation.ParallelTest;
 import com.hazelcast.test.annotation.QuickTest;
 import org.junit.After;
 import org.junit.Assert;
@@ -29,7 +32,9 @@ import org.junit.Test;
 import org.junit.experimental.categories.Category;
 import org.junit.runner.RunWith;
 
+import java.io.Serializable;
 import java.util.Set;
+import java.util.Map.Entry;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
@@ -42,7 +47,7 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 @RunWith(HazelcastParallelClassRunner.class)
-@Category(QuickTest.class)
+@Category({QuickTest.class, ParallelTest.class})
 public class ClientMapLockTest {
 
     private final TestHazelcastFactory hazelcastFactory = new TestHazelcastFactory();
@@ -629,6 +634,42 @@ public class ClientMapLockTest {
         }, 30);
     }
 
+    @Test
+    public void testExecuteOnKeyWhenLock() throws InterruptedException {
+        final IMap map = getMapForLock();
+        final String key = randomString();
+        
+        map.lock(key);
+        assertTrueEventually(new AssertTask() {
+            @Override
+            public void run() throws Exception {
+            	String payload = randomString();
+                Object ret = map.executeOnKey(key, new LockEntryProcessor(payload));
+                assertEquals(payload, ret);
+            }
+        }, 30);
+        map.unlock(key);
+    }
+    
+    private static class LockEntryProcessor implements EntryProcessor<Object,Object>, Serializable {
+
+    	public final String payload;
+    	public LockEntryProcessor(String payload) {
+    		this.payload = payload;
+    	}
+    	
+		@Override
+		public Object process(Entry entry) {
+			return payload;
+		}
+
+		@Override
+		public EntryBackupProcessor getBackupProcessor() {
+			return null;
+		}
+    	
+    }
+    
     private IMap getMapForLock() {
         return client.getMap(randomString());
     }
