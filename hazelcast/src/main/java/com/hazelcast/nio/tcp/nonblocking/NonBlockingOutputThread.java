@@ -33,8 +33,9 @@ public final class NonBlockingOutputThread extends NonBlockingIOThread {
     public NonBlockingOutputThread(ThreadGroup threadGroup,
                                    String threadName,
                                    ILogger logger,
-                                   NonBlockingIOThreadOutOfMemoryHandler oomeHandler) {
-        super(threadGroup, threadName, logger, oomeHandler);
+                                   NonBlockingIOThreadOutOfMemoryHandler oomeHandler,
+                                   boolean selectNow) {
+        super(threadGroup, threadName, logger, oomeHandler, selectNow);
     }
 
     /**
@@ -53,7 +54,12 @@ public final class NonBlockingOutputThread extends NonBlockingIOThread {
         if (sk.isValid() && sk.isWritable()) {
             writeEvents.inc();
             SelectionHandler handler = (SelectionHandler) sk.attachment();
-            handler.handle();
+
+            try {
+                handler.handle();
+            } catch (Throwable t) {
+                handler.onFailure(t);
+            }
         }
     }
 }

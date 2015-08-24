@@ -25,6 +25,7 @@ import com.hazelcast.nio.serialization.Data;
 import com.hazelcast.nio.serialization.IdentifiedDataSerializable;
 import com.hazelcast.spi.BackupOperation;
 import com.hazelcast.spi.impl.AbstractNamedOperation;
+import com.hazelcast.spi.impl.MutatingOperation;
 
 import java.io.IOException;
 import java.util.HashSet;
@@ -36,7 +37,7 @@ import java.util.Set;
  */
 public class CacheRemoveAllBackupOperation
         extends AbstractNamedOperation
-        implements BackupOperation, IdentifiedDataSerializable {
+        implements BackupOperation, IdentifiedDataSerializable, MutatingOperation {
 
     private Set<Data> keys;
 
@@ -69,7 +70,7 @@ public class CacheRemoveAllBackupOperation
     public void beforeRun()
             throws Exception {
         CacheService service = getService();
-        cache = service.getOrCreateCache(name, getPartitionId());
+        cache = service.getOrCreateRecordStore(name, getPartitionId());
     }
 
     @Override

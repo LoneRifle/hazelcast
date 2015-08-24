@@ -26,7 +26,7 @@ import com.hazelcast.core.ClientType;
 import com.hazelcast.core.HazelcastInstanceNotActiveException;
 import com.hazelcast.logging.ILogger;
 import com.hazelcast.nio.Connection;
-import com.hazelcast.nio.serialization.impl.HeapData;
+import com.hazelcast.internal.serialization.impl.HeapData;
 import com.hazelcast.nio.tcp.TcpIpConnection;
 import com.hazelcast.security.Credentials;
 import com.hazelcast.spi.EventService;
@@ -115,7 +115,6 @@ public final class ClientEndpointImpl implements Client, ClientEndpoint {
     public void authenticated(ClientPrincipal principal) {
         this.principal = principal;
         this.authenticated = true;
-        clientEngine.addOwnershipMapping(principal.getUuid(), principal.getOwnerUuid());
     }
 
     @Override

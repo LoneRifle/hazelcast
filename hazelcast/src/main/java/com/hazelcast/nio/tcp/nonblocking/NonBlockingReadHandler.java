@@ -20,13 +20,12 @@ import com.hazelcast.internal.metrics.MetricsRegistry;
 import com.hazelcast.internal.metrics.Probe;
 import com.hazelcast.nio.Protocols;
 import com.hazelcast.nio.ascii.SocketTextReader;
-import com.hazelcast.nio.tcp.ClientPacketSocketReader;
 import com.hazelcast.nio.tcp.ClientMessageSocketReader;
+import com.hazelcast.nio.tcp.ClientPacketSocketReader;
 import com.hazelcast.nio.tcp.PacketSocketReader;
+import com.hazelcast.nio.tcp.ReadHandler;
 import com.hazelcast.nio.tcp.SocketReader;
 import com.hazelcast.nio.tcp.TcpIpConnection;
-import com.hazelcast.nio.tcp.ReadHandler;
-import com.hazelcast.util.Clock;
 import com.hazelcast.util.counters.Counter;
 import com.hazelcast.util.counters.SwCounter;
 
@@ -41,15 +40,14 @@ import static com.hazelcast.nio.IOService.KILO_BYTE;
 import static com.hazelcast.nio.Protocols.CLIENT_BINARY;
 import static com.hazelcast.nio.Protocols.CLIENT_BINARY_NEW;
 import static com.hazelcast.nio.Protocols.CLUSTER;
+import static com.hazelcast.util.Clock.currentTimeMillis;
 import static com.hazelcast.util.StringUtil.bytesToString;
 import static com.hazelcast.util.counters.SwCounter.newSwCounter;
 
 /**
  * The reading side of the {@link com.hazelcast.nio.Connection}.
  */
-public final class NonBlockingReadHandler
-        extends AbstractSelectionHandler
-        implements ReadHandler {
+public final class NonBlockingReadHandler extends AbstractSelectionHandler implements ReadHandler {
 
     private ByteBuffer inputBuffer;
 
@@ -59,8 +57,6 @@ public final class NonBlockingReadHandler
     private final SwCounter normalPacketsRead = newSwCounter();
     @Probe(name = "in.priorityPacketsRead")
     private final SwCounter priorityPacketsRead = newSwCounter();
-    @Probe(name = "in.exceptionCount")
-    private final SwCounter exceptionCount = newSwCounter();
     private final MetricsRegistry metricRegistry;
 
     private SocketReader socketReader;
@@ -125,7 +121,6 @@ public final class NonBlockingReadHandler
             @Override
             public void run() {
                 getSelectionKey();
-
             }
         });
     }
@@ -146,59 +141,45 @@ public final class NonBlockingReadHandler
     }
 
     @Override
-    @edu.umd.cs.findbugs.annotations.SuppressWarnings(value = "VO_VOLATILE_INCREMENT",
-            justification = "eventCount is accessed by a single thread only.")
-    public void handle() {
+    public void handle() throws Exception {
         eventCount.inc();
-        lastReadTime = Clock.currentTimeMillis();
-        if (!connection.isAlive()) {
-            String message = "We are being asked to read, but connection is not live so we won't";
-            logger.finest(message);
-            return;
-        }
-        try {
-            if (socketReader == null) {
-                initializeSocketReader();
-                if (socketReader == null) {
-                    // when using SSL, we can read 0 bytes since data read from socket can be handshake packets.
-                    return;
-                }
-            }
-            int readBytes = socketChannel.read(inputBuffer);
+        // we are going to set the timestamp even if the socketChannel is going to fail reading. In that case
+        // the connection is going to be closed anyway.
+        lastReadTime = currentTimeMillis();
 
-            if (readBytes == -1) {
-                throw new EOFException("Remote socket closed!");
-            } else {
-                bytesRead.inc(readBytes);
-            }
-        } catch (Throwable e) {
-            handleSocketException(e);
+        if (!connection.isAlive()) {
+            logger.finest("We are being asked to read, but connection is not live so we won't");
             return;
         }
-        try {
-            if (inputBuffer.position() == 0) {
+
+        if (socketReader == null) {
+            initializeSocketReader();
+            if (socketReader == null) {
+                // when using SSL, we can read 0 bytes since data read from socket can be handshake packets.
                 return;
             }
-            inputBuffer.flip();
-            socketReader.read(inputBuffer);
-            if (inputBuffer.hasRemaining()) {
-                inputBuffer.compact();
-            } else {
-                inputBuffer.clear();
+        }
+
+        int readBytes = socketChannel.read(inputBuffer);
+        if (readBytes <= 0) {
+            if (readBytes == -1) {
+                throw new EOFException("Remote socket closed!");
             }
-        } catch (Throwable t) {
-            handleSocketException(t);
+            return;
+        }
+
+        bytesRead.inc(readBytes);
+
+        inputBuffer.flip();
+        socketReader.read(inputBuffer);
+        if (inputBuffer.hasRemaining()) {
+            inputBuffer.compact();
+        } else {
+            inputBuffer.clear();
         }
     }
 
-    @Override
-    public void handleSocketException(Throwable e) {
-        exceptionCount.inc();
-        super.handleSocketException(e);
-    }
-
-    private void initializeSocketReader()
-            throws IOException {
+    private void initializeSocketReader() throws IOException {
         if (socketReader != null) {
             return;
         }

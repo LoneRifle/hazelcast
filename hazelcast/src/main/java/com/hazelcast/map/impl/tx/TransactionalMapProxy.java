@@ -20,7 +20,7 @@ import com.hazelcast.core.TransactionalMap;
 import com.hazelcast.map.impl.MapService;
 import com.hazelcast.map.impl.MapServiceContext;
 import com.hazelcast.nio.serialization.Data;
-import com.hazelcast.nio.serialization.SerializationService;
+import com.hazelcast.internal.serialization.SerializationService;
 import com.hazelcast.query.PagingPredicate;
 import com.hazelcast.query.Predicate;
 import com.hazelcast.query.impl.QueryEntry;
@@ -392,7 +392,7 @@ public class TransactionalMapProxy extends TransactionalMapProxySupport implemen
 
         QueryResultSet queryResultSet = (QueryResultSet) queryInternal(predicate, IterationType.ENTRY, false);
         // TODO: Can't we just use the original set?
-        Set<Object> valueSet = new HashSet<Object>();
+        List<Object> valueSet = new ArrayList<Object>();
         Set<Object> keyWontBeIncluded = new HashSet<Object>();
 
         // iterate over the txMap and see if the values are updated or removed
@@ -429,7 +429,7 @@ public class TransactionalMapProxy extends TransactionalMapProxySupport implemen
         return wrapper == null || wrapper.type == TxnValueWrapper.Type.REMOVED ? null : wrapper.value;
     }
 
-    private void removeFromResultSet(QueryResultSet queryResultSet, Set<Object> valueSet, Set<Object> keyWontBeIncluded) {
+    private void removeFromResultSet(QueryResultSet queryResultSet, List<Object> valueSet, Set<Object> keyWontBeIncluded) {
         Iterator<Map.Entry> iterator = queryResultSet.rawIterator();
         while (iterator.hasNext()) {
             Map.Entry entry = iterator.next();

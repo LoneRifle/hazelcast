@@ -5,7 +5,9 @@ import com.hazelcast.spi.impl.PacketHandler;
 import com.hazelcast.test.AssertTask;
 import com.hazelcast.test.HazelcastSerialClassRunner;
 import com.hazelcast.test.annotation.NightlyTest;
+import com.hazelcast.test.annotation.Repeat;
 import org.junit.Before;
+import org.junit.Ignore;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
 import org.junit.runner.RunWith;
@@ -21,9 +23,7 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertTrue;
 
-@RunWith(HazelcastSerialClassRunner.class)
-@Category(NightlyTest.class)
-public class TcpIpConnection_BasicTest extends TcpIpConnection_AbstractTest {
+public abstract class TcpIpConnection_BasicTest extends TcpIpConnection_AbstractTest {
 
     private List<Packet> packetsB = Collections.synchronizedList(new ArrayList<Packet>());
 
@@ -113,6 +113,8 @@ public class TcpIpConnection_BasicTest extends TcpIpConnection_AbstractTest {
         assertTrue(current - marginOfErrorMs < result);
     }
 
+    @Ignore
+    @Repeat
     @Test
     public void lastWriteTime_whenNothingWritten() {
         TcpIpConnection c = connect(connManagerA, addressB);
@@ -126,6 +128,8 @@ public class TcpIpConnection_BasicTest extends TcpIpConnection_AbstractTest {
     // we check the lastReadTime by sending a packet on the local connection, and
     // on the remote side we check the if the lastReadTime is updated
     @Test
+    @Ignore
+    @Repeat(100)
     public void lastReadTime() {
         TcpIpConnection connAB = connect(connManagerA, addressB);
         TcpIpConnection connBA = connect(connManagerB, addressA);

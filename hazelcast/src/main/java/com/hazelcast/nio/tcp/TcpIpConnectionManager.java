@@ -30,12 +30,13 @@ import com.hazelcast.nio.ConnectionManager;
 import com.hazelcast.nio.IOService;
 import com.hazelcast.nio.MemberSocketInterceptor;
 import com.hazelcast.nio.Packet;
-import com.hazelcast.nio.tcp.nonblocking.NonBlockingTcpIpConnectionThreadingModel;
+import com.hazelcast.nio.tcp.nonblocking.NonBlockingIOThreadingModel;
 import com.hazelcast.spi.impl.PacketHandler;
 import com.hazelcast.util.ConcurrencyUtil;
 import com.hazelcast.util.ConstructorFunction;
 import com.hazelcast.util.counters.MwCounter;
 import com.hazelcast.util.executor.StripedRunnable;
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 
 import java.io.IOException;
 import java.net.Socket;
@@ -47,6 +48,9 @@ import java.util.LinkedList;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArraySet;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static com.hazelcast.nio.IOService.KILO_BYTE;
@@ -55,6 +59,9 @@ import static com.hazelcast.util.Preconditions.checkNotNull;
 import static com.hazelcast.util.counters.MwCounter.newMwCounter;
 
 public class TcpIpConnectionManager implements ConnectionManager, PacketHandler {
+
+    private static final int RETRY_NUMBER = 5;
+    private static final int DELAY_FACTOR = 100;
 
     final LoggingService loggingService;
 
@@ -96,7 +103,7 @@ public class TcpIpConnectionManager implements ConnectionManager, PacketHandler 
 
     private final AtomicInteger connectionIdGen = new AtomicInteger();
 
-    private final TcpIpConnectionThreadingModel threadingModel;
+    private final IOThreadingModel ioThreadingModel;
 
     private volatile boolean live;
 
@@ -117,22 +124,24 @@ public class TcpIpConnectionManager implements ConnectionManager, PacketHandler 
     @Probe
     private final MwCounter closedCount = newMwCounter();
 
+    private final ScheduledExecutorService scheduler = new ScheduledThreadPoolExecutor(4);
+
     public TcpIpConnectionManager(IOService ioService,
                                   ServerSocketChannel serverSocketChannel,
                                   MetricsRegistry metricsRegistry,
                                   HazelcastThreadGroup threadGroup,
                                   LoggingService loggingService) {
         this(ioService, serverSocketChannel, loggingService, metricsRegistry,
-                new NonBlockingTcpIpConnectionThreadingModel(ioService, loggingService, metricsRegistry, threadGroup));
+                new NonBlockingIOThreadingModel(ioService, loggingService, metricsRegistry, threadGroup));
     }
 
     public TcpIpConnectionManager(IOService ioService,
                                   ServerSocketChannel serverSocketChannel,
                                   LoggingService loggingService,
                                   MetricsRegistry metricsRegistry,
-                                  TcpIpConnectionThreadingModel tcpIpConnectionThreadingModel) {
+                                  IOThreadingModel ioThreadingModel) {
         this.ioService = ioService;
-        this.threadingModel = tcpIpConnectionThreadingModel;
+        this.ioThreadingModel = ioThreadingModel;
         this.serverSocketChannel = serverSocketChannel;
         this.loggingService = loggingService;
         this.logger = loggingService.getLogger(TcpIpConnectionManager.class);
@@ -148,8 +157,8 @@ public class TcpIpConnectionManager implements ConnectionManager, PacketHandler 
         return ioService;
     }
 
-    public TcpIpConnectionThreadingModel getThreadingModel() {
-        return threadingModel;
+    public IOThreadingModel getIoThreadingModel() {
+        return ioThreadingModel;
     }
 
     public void interceptSocket(Socket socket, boolean onAccept) throws IOException {
@@ -320,14 +329,14 @@ public class TcpIpConnectionManager implements ConnectionManager, PacketHandler 
                 this,
                 connectionIdGen.incrementAndGet(),
                 channel,
-                threadingModel);
+                ioThreadingModel);
 
         connection.setEndPoint(endpoint);
         activeConnections.add(connection);
         acceptedSockets.remove(channel);
 
         connection.start();
-        threadingModel.onConnectionAdded(connection);
+        ioThreadingModel.onConnectionAdded(connection);
 
         logger.info("Established socket connection between "
                 + channel.socket().getLocalSocketAddress() + " and " + channel.socket().getRemoteSocketAddress());
@@ -390,7 +399,7 @@ public class TcpIpConnectionManager implements ConnectionManager, PacketHandler 
             connectionsMap.remove(endPoint, connection);
             // this should not be needed; but some tests are using DroppingConnection which is not a TcpIpConnection.
             if (connection instanceof TcpIpConnection) {
-                threadingModel.onConnectionRemoved((TcpIpConnection) connection);
+                ioThreadingModel.onConnectionRemoved((TcpIpConnection) connection);
             }
             if (live) {
                 ioService.getEventService().executeEventCallback(new StripedRunnable() {
@@ -436,7 +445,7 @@ public class TcpIpConnectionManager implements ConnectionManager, PacketHandler 
         live = true;
         logger.finest("Starting ConnectionManager and IO selectors.");
 
-        threadingModel.start();
+        ioThreadingModel.start();
         startAcceptorThread();
     }
 
@@ -476,7 +485,7 @@ public class TcpIpConnectionManager implements ConnectionManager, PacketHandler 
         for (TcpIpConnection conn : activeConnections) {
             destroySilently(conn);
         }
-        threadingModel.shutdown();
+        ioThreadingModel.shutdown();
         acceptedSockets.clear();
         connectionsInProgress.clear();
         connectionsMap.clear();
@@ -545,6 +554,70 @@ public class TcpIpConnectionManager implements ConnectionManager, PacketHandler 
             final Integer port = outboundPorts.removeFirst();
             outboundPorts.addLast(port);
             return port;
+        }
+    }
+
+
+    @Override
+    public boolean transmit(Packet packet, Connection connection) {
+        checkNotNull(packet, "Packet can't be null");
+
+        if (connection == null) {
+            return false;
+        }
+
+        return connection.write(packet);
+    }
+
+    /**
+     * Retries sending packet maximum 5 times until connection to target becomes available.
+     */
+    @Override
+    public boolean transmit(Packet packet, Address target) {
+        checkNotNull(packet, "Packet can't be null");
+        checkNotNull(target, "target can't be null");
+
+        return send(packet, target, null);
+    }
+
+    private boolean send(Packet packet, Address target, SendTask sendTask) {
+        Connection connection = getConnection(target);
+        if (connection != null) {
+            return connection.write(packet);
+        }
+
+        if (sendTask == null) {
+            sendTask = new SendTask(packet, target);
+        }
+
+        int retries = sendTask.retries;
+        if (retries < RETRY_NUMBER && ioService.isActive()) {
+            getOrConnect(target, true);
+            // TODO: Caution: may break the order guarantee of the packets sent from the same thread!
+            scheduler.schedule(sendTask, (retries + 1) * DELAY_FACTOR, TimeUnit.MILLISECONDS);
+            return true;
+        }
+        return false;
+    }
+
+    private final class SendTask implements Runnable {
+        private final Packet packet;
+        private final Address target;
+        private volatile int retries;
+
+        private SendTask(Packet packet, Address target) {
+            this.packet = packet;
+            this.target = target;
+        }
+
+        @SuppressFBWarnings(value = "VO_VOLATILE_INCREMENT", justification = "single-writer, many-reader")
+        @Override
+        public void run() {
+            retries++;
+            if (logger.isFinestEnabled()) {
+                logger.finest("Retrying[" + retries + "] packet send operation to: " + target);
+            }
+            send(packet, target, this);
         }
     }
 

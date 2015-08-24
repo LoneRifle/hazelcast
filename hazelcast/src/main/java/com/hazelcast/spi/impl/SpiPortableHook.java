@@ -19,14 +19,14 @@ package com.hazelcast.spi.impl;
 import com.hazelcast.nio.serialization.ClassDefinition;
 import com.hazelcast.nio.serialization.Portable;
 import com.hazelcast.nio.serialization.PortableFactory;
-import com.hazelcast.nio.serialization.PortableHook;
-import com.hazelcast.nio.serialization.impl.FactoryIdHelper;
+import com.hazelcast.internal.serialization.PortableHook;
+import com.hazelcast.internal.serialization.impl.FactoryIdHelper;
 import com.hazelcast.security.UsernamePasswordCredentials;
 
 import java.util.Collection;
 
-import static com.hazelcast.nio.serialization.impl.FactoryIdHelper.SPI_PORTABLE_FACTORY;
-import static com.hazelcast.nio.serialization.impl.FactoryIdHelper.SPI_PORTABLE_FACTORY_ID;
+import static com.hazelcast.internal.serialization.impl.FactoryIdHelper.SPI_PORTABLE_FACTORY;
+import static com.hazelcast.internal.serialization.impl.FactoryIdHelper.SPI_PORTABLE_FACTORY_ID;
 
 public final class SpiPortableHook implements PortableHook {
 
@@ -39,6 +39,7 @@ public final class SpiPortableHook implements PortableHook {
     public static final int DISTRIBUTED_OBJECT_EVENT = 5;
     public static final int MAP_PARTITION_LOST_EVENT = 6;
     public static final int PARTITION_LOST_EVENT = 7;
+    public static final int CACHE_PARTITION_LOST_EVENT = 8;
 
     @Override
     public int getFactoryId() {
@@ -64,6 +65,8 @@ public final class SpiPortableHook implements PortableHook {
                         return new PortableMapPartitionLostEvent();
                     case PARTITION_LOST_EVENT:
                         return new PortablePartitionLostEvent();
+                    case CACHE_PARTITION_LOST_EVENT:
+                        return new PortableCachePartitionLostEvent();
                     default:
                         return null;
                 }

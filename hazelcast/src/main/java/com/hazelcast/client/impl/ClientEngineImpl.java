@@ -26,6 +26,7 @@ import com.hazelcast.client.impl.client.ClientResponse;
 import com.hazelcast.client.impl.operations.ClientDisconnectionOperation;
 import com.hazelcast.client.impl.operations.GetConnectedClientsOperation;
 import com.hazelcast.client.impl.operations.PostJoinClientOperation;
+import com.hazelcast.client.impl.protocol.ClientExceptionFactory;
 import com.hazelcast.client.impl.protocol.ClientMessage;
 import com.hazelcast.client.impl.protocol.MessageTaskFactory;
 import com.hazelcast.client.impl.protocol.task.MessageTask;
@@ -40,12 +41,13 @@ import com.hazelcast.instance.MemberImpl;
 import com.hazelcast.instance.Node;
 import com.hazelcast.logging.ILogger;
 import com.hazelcast.nio.Address;
+import com.hazelcast.nio.ClassLoaderUtil;
 import com.hazelcast.nio.Connection;
 import com.hazelcast.nio.ConnectionListener;
 import com.hazelcast.nio.Packet;
 import com.hazelcast.nio.serialization.Data;
 import com.hazelcast.nio.serialization.PortableReader;
-import com.hazelcast.nio.serialization.SerializationService;
+import com.hazelcast.internal.serialization.SerializationService;
 import com.hazelcast.nio.tcp.TcpIpConnection;
 import com.hazelcast.partition.InternalPartitionService;
 import com.hazelcast.security.Credentials;
@@ -81,9 +83,9 @@ import java.util.Properties;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.Executor;
+import java.util.concurrent.Future;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.Future;
 import java.util.logging.Level;
 
 import static com.hazelcast.spi.impl.OperationResponseHandlerFactory.createEmptyResponseHandler;
@@ -115,6 +117,7 @@ public class ClientEngineImpl implements ClientEngine, CoreService, PostJoinAwar
     private final ConnectionListener connectionListener = new ConnectionListenerImpl();
 
     private final MessageTaskFactory messageTaskFactory;
+    private final ClientExceptionFactory clientExceptionFactory;
 
     public ClientEngineImpl(Node node) {
         this.logger = node.getLogger(ClientEngine.class);
@@ -124,10 +127,17 @@ public class ClientEngineImpl implements ClientEngine, CoreService, PostJoinAwar
         this.endpointManager = new ClientEndpointManagerImpl(this, nodeEngine);
         this.executor = newExecutor();
         this.messageTaskFactory = node.getNodeExtension().createMessageTaskFactory(node);
+        this.clientExceptionFactory = initClientExceptionFactory();
 
         ClientHeartbeatMonitor heartBeatMonitor = new ClientHeartbeatMonitor(
                 endpointManager, this, nodeEngine.getExecutionService(), node.groupProperties);
         heartBeatMonitor.start();
+    }
+
+    private ClientExceptionFactory initClientExceptionFactory() {
+        ClassLoader classLoader = nodeEngine.getConfigClassLoader();
+        boolean jcacheAvailable = ClassLoaderUtil.isClassAvailable(classLoader, "javax.cache.Caching");
+        return new ClientExceptionFactory(jcacheAvailable);
     }
 
     private Executor newExecutor() {
@@ -147,6 +157,11 @@ public class ClientEngineImpl implements ClientEngine, CoreService, PostJoinAwar
     //needed for testing purposes
     public ConnectionListener getConnectionListener() {
         return connectionListener;
+    }
+
+    @Override
+    public SerializationService getSerializationService() {
+        return serializationService;
     }
 
     @Override
@@ -236,6 +251,10 @@ public class ClientEngineImpl implements ClientEngine, CoreService, PostJoinAwar
 
     public ClientEndpointManager getEndpointManager() {
         return endpointManager;
+    }
+
+    public ClientExceptionFactory getClientExceptionFactory() {
+        return clientExceptionFactory;
     }
 
     @Override
@@ -612,10 +631,10 @@ public class ClientEngineImpl implements ClientEngine, CoreService, PostJoinAwar
     @Override
     public Map<ClientType, Integer> getConnectedClientStats() {
 
-        int numberOfCppClients    = 0;
+        int numberOfCppClients = 0;
         int numberOfDotNetClients = 0;
-        int numberOfJavaClients   = 0;
-        int numberOfOtherClients  = 0;
+        int numberOfJavaClients = 0;
+        int numberOfOtherClients = 0;
 
         Operation clientInfoOperation = new GetConnectedClientsOperation();
         OperationService operationService = node.nodeEngine.getOperationService();

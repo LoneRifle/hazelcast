@@ -68,15 +68,23 @@ public class TestHazelcastInstanceFactory {
         }
     }
 
+    /**
+     * Delegates to {@link #newHazelcastInstance(Config) <code>newHazelcastInstance(null)</code>}.
+     */
     public HazelcastInstance newHazelcastInstance() {
-        return newHazelcastInstance(new Config());
+        return newHazelcastInstance(null);
     }
 
+    /**
+     * Creates a new test Hazelcast instance.
+     * @param config the config to use; use <code>null</code> to get the default config.
+     */
     public HazelcastInstance newHazelcastInstance(Config config) {
+        final String instanceName = config != null? config.getInstanceName() : null;
         if (mockNetwork) {
             init(config);
             NodeContext nodeContext = registry.createNodeContext(pickAddress());
-            return HazelcastInstanceFactory.newHazelcastInstance(config, null, nodeContext);
+            return HazelcastInstanceFactory.newHazelcastInstance(config, instanceName, nodeContext);
         }
         return HazelcastInstanceFactory.newHazelcastInstance(config);
     }

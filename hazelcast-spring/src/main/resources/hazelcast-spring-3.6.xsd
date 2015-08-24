@@ -434,6 +434,18 @@
                                             </xs:sequence>
                                         </xs:complexType>
                                     </xs:element>
+                                    <xs:element name="partition-lost-listeners" minOccurs="0" maxOccurs="1">
+                                        <xs:annotation>
+                                            <xs:documentation>List of partition lost listeners</xs:documentation>
+                                        </xs:annotation>
+                                        <xs:complexType>
+                                            <xs:sequence>
+                                                <xs:element name="partition-lost-listener" type="listener"
+                                                            minOccurs="0"
+                                                            maxOccurs="unbounded"/>
+                                            </xs:sequence>
+                                        </xs:complexType>
+                                    </xs:element>
                                     <xs:element name="expiry-policy-factory" minOccurs="0" maxOccurs="1">
                                         <xs:annotation>
                                             <xs:documentation>
@@ -462,6 +474,7 @@
                                             </xs:documentation>
                                         </xs:annotation>
                                     </xs:element>
+                                    <xs:element name="quorum-ref" minOccurs="0" maxOccurs="1" />
                                 </xs:sequence>
                                 <xs:attribute name="name" type="xs:string" use="required">
                                     <xs:annotation>
@@ -542,18 +555,20 @@
                                 <xs:attribute name="backup-count" use="optional" type="parameterized-backup-count">
                                     <xs:annotation>
                                         <xs:documentation>
-                                            Number of sync backups. If 1 is set as the backup-count for example, then
-                                            all entries of the map will be copied to another JVM for fail-safety. Valid
-                                            numbers are 0 (no backup), 1, 2 ... 6.
+                                            Number of synchronous backups. For example, if `1` is set as the `backup-count`,
+                                            then all entries of the cache are copied to one other instance as synchronous for fail-safety.
+                                            `backup-count` + `async-backup-count` cannot be bigger than maximum backup count which is `6`.
+                                            Valid numbers are 0 (no backup), 1, 2 ... 6.
                                         </xs:documentation>
                                     </xs:annotation>
                                 </xs:attribute>
                                 <xs:attribute name="async-backup-count" use="optional" type="parameterized-backup-count">
                                     <xs:annotation>
                                         <xs:documentation>
-                                            Number of async backups. If 1 is set as the backup-count for example, then
-                                            all entries of the map will be copied to another JVM for fail-safety. Valid
-                                            numbers are 0 (no backup), 1, 2 ... 6.
+                                            Number of asynchronous backups. For example, if `1` is set as the `async-backup-count`,
+                                            then all entries of the cache are copied to one other instance as asynchronous for fail-safety.
+                                            `backup-count` + `async-backup-count` cannot be bigger than maximum backup count which is `6`.
+                                            Valid numbers are 0 (no backup), 1, 2 ... 6.
                                         </xs:documentation>
                                     </xs:annotation>
                                 </xs:attribute>

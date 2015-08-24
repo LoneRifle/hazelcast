@@ -30,6 +30,7 @@ import com.hazelcast.spi.BackupAwareOperation;
 import com.hazelcast.spi.Operation;
 import com.hazelcast.spi.PartitionAwareOperation;
 import com.hazelcast.spi.impl.AbstractNamedOperation;
+import com.hazelcast.spi.impl.MutatingOperation;
 
 import javax.cache.CacheException;
 import java.io.IOException;
@@ -46,7 +47,7 @@ import java.util.Set;
  */
 public class CacheLoadAllOperation
         extends AbstractNamedOperation
-        implements PartitionAwareOperation, IdentifiedDataSerializable, BackupAwareOperation {
+        implements PartitionAwareOperation, IdentifiedDataSerializable, BackupAwareOperation, MutatingOperation {
 
     private Set<Data> keys;
     private boolean replaceExistingValues;
@@ -87,13 +88,18 @@ public class CacheLoadAllOperation
 
         try {
             final CacheService service = getService();
-            cache = service.getOrCreateCache(name, partitionId);
+            cache = service.getOrCreateRecordStore(name, partitionId);
             final Set<Data> keysLoaded = cache.loadAll(filteredKeys, replaceExistingValues);
             shouldBackup = !keysLoaded.isEmpty();
             if (shouldBackup) {
-                backupRecords = new HashMap<Data, CacheRecord>();
+                backupRecords = new HashMap<Data, CacheRecord>(keysLoaded.size());
                 for (Data key : keysLoaded) {
-                    backupRecords.put(key, cache.getRecord(key));
+                    CacheRecord record = cache.getRecord(key);
+                    // Loaded keys may have been evicted, then record will be null.
+                    // So if the loaded key is evicted, don't send it to backup.
+                    if (record != null) {
+                        backupRecords.put(key, record);
+                    }
                 }
             }
         } catch (CacheException e) {

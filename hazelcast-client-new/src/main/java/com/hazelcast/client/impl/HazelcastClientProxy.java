@@ -44,7 +44,7 @@ import com.hazelcast.core.ReplicatedMap;
 import com.hazelcast.instance.TerminatedLifecycleService;
 import com.hazelcast.logging.LoggingService;
 import com.hazelcast.mapreduce.JobTracker;
-import com.hazelcast.nio.serialization.SerializationService;
+import com.hazelcast.internal.serialization.SerializationService;
 import com.hazelcast.ringbuffer.Ringbuffer;
 import com.hazelcast.quorum.QuorumService;
 import com.hazelcast.spi.impl.SerializationServiceSupport;
@@ -80,7 +80,7 @@ public final class HazelcastClientProxy implements HazelcastInstance, Serializat
 
     @Override
     public <E> Ringbuffer<E> getRingbuffer(String name) {
-        throw new UnsupportedOperationException();
+        return getClient().getRingbuffer(name);
     }
 
     @Override

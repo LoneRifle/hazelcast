@@ -6,8 +6,9 @@ import com.hazelcast.logging.ILogger;
 import com.hazelcast.logging.LoggingServiceImpl;
 import com.hazelcast.nio.Address;
 import com.hazelcast.nio.Connection;
-import com.hazelcast.nio.serialization.SerializationService;
-import com.hazelcast.nio.serialization.impl.DefaultSerializationServiceBuilder;
+import com.hazelcast.internal.serialization.SerializationService;
+import com.hazelcast.internal.serialization.impl.DefaultSerializationServiceBuilder;
+import com.hazelcast.nio.tcp.nonblocking.Select_NonBlockingIOThreadingModelFactory;
 import com.hazelcast.test.AssertTask;
 import com.hazelcast.test.HazelcastTestSupport;
 import org.junit.After;
@@ -18,6 +19,8 @@ import java.util.concurrent.atomic.AtomicReference;
 import static org.junit.Assert.assertNotNull;
 
 public abstract class TcpIpConnection_AbstractTest extends HazelcastTestSupport {
+
+    protected IOThreadingModelFactory threadingModelFactory = new Select_NonBlockingIOThreadingModelFactory();
 
     protected ILogger logger;
     protected LoggingServiceImpl loggingService;
@@ -78,9 +81,9 @@ public abstract class TcpIpConnection_AbstractTest extends HazelcastTestSupport 
         return new TcpIpConnectionManager(
                 ioService,
                 ioService.serverSocketChannel,
+                ioService.loggingService,
                 metricsRegistry,
-                ioService.hazelcastThreadGroup,
-                ioService.loggingService);
+                threadingModelFactory.create(ioService, metricsRegistry));
     }
 
     // ====================== support ========================================

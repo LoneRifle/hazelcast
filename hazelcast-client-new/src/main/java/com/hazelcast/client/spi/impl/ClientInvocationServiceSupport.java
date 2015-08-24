@@ -20,9 +20,10 @@ import com.hazelcast.client.HazelcastClientNotActiveException;
 import com.hazelcast.client.connection.ClientConnectionManager;
 import com.hazelcast.client.connection.nio.ClientConnection;
 import com.hazelcast.client.impl.HazelcastClientInstanceImpl;
+import com.hazelcast.client.impl.protocol.ClientExceptionFactory;
 import com.hazelcast.client.impl.protocol.ClientMessage;
 import com.hazelcast.client.impl.protocol.codec.ClientRemoveAllListenersCodec;
-import com.hazelcast.client.impl.protocol.parameters.ExceptionResultParameters;
+import com.hazelcast.client.impl.protocol.parameters.ErrorCodec;
 import com.hazelcast.client.spi.ClientExecutionService;
 import com.hazelcast.client.spi.ClientInvocationService;
 import com.hazelcast.client.spi.ClientPartitionService;
@@ -30,13 +31,13 @@ import com.hazelcast.client.spi.EventHandler;
 import com.hazelcast.logging.ILogger;
 import com.hazelcast.logging.Logger;
 import com.hazelcast.nio.Address;
+import com.hazelcast.nio.ClassLoaderUtil;
 import com.hazelcast.nio.Connection;
 import com.hazelcast.nio.ConnectionListener;
 import com.hazelcast.spi.exception.TargetDisconnectedException;
 import com.hazelcast.util.ConstructorFunction;
 
 import java.io.IOException;
-import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
 import java.util.Iterator;
 import java.util.Map;
@@ -66,7 +67,7 @@ abstract class ClientInvocationServiceSupport implements ClientInvocationService
     private final ConcurrentMap<Integer, ClientListenerInvocation> eventHandlerMap
             = new ConcurrentHashMap<Integer, ClientListenerInvocation>();
     private final AtomicInteger callIdIncrementer = new AtomicInteger();
-
+    private final ClientExceptionFactory clientExceptionFactory;
     private volatile boolean isShutdown;
 
 
@@ -77,9 +78,16 @@ abstract class ClientInvocationServiceSupport implements ClientInvocationService
         connectionManager.addConnectionListener(this);
         connectionManager.addConnectionHeartbeatListener(this);
         this.partitionService = client.getClientPartitionService();
+        this.clientExceptionFactory = initClientExceptionFactory();
         responseThread = new ResponseThread(client.getThreadGroup(), client.getName() + ".response-",
                 client.getClientConfig().getClassLoader());
         responseThread.start();
+    }
+
+    private ClientExceptionFactory initClientExceptionFactory() {
+        ClassLoader classLoader = client.getClientConfig().getClassLoader();
+        boolean jcacheAvailable = ClassLoaderUtil.isClassAvailable(classLoader, "javax.cache.Caching");
+        return new ClientExceptionFactory(jcacheAvailable);
     }
 
     @Override
@@ -374,25 +382,12 @@ abstract class ClientInvocationServiceSupport implements ClientInvocationService
                 return;
             }
 
-            if (ExceptionResultParameters.TYPE == clientMessage.getMessageType()) {
-                ExceptionResultParameters exceptionResultParameters = ExceptionResultParameters.decode(clientMessage);
-                Throwable exception;
-                if (exceptionResultParameters.causeClassName != null) {
-                    Class<?> causeClazz = Class.forName(exceptionResultParameters.causeClassName);
-                    Constructor<?> causeConstructor = causeClazz.getDeclaredConstructor(new Class[]{String.class});
-                    causeConstructor.setAccessible(true);
-                    Throwable cause = (Throwable) causeConstructor.newInstance(exceptionResultParameters.message);
-
-                    Class<?> clazz = Class.forName(exceptionResultParameters.className);
-                    Constructor<?> constructor = clazz.getDeclaredConstructor(new Class[]{String.class, Throwable.class});
-                    constructor.setAccessible(true);
-                    exception = (Throwable) constructor.newInstance(exceptionResultParameters.message, cause);
-                } else {
-                    Class<?> clazz = Class.forName(exceptionResultParameters.className);
-                    Constructor<?> constructor = clazz.getDeclaredConstructor(new Class[]{String.class});
-                    constructor.setAccessible(true);
-                    exception = (Throwable) constructor.newInstance(exceptionResultParameters.message);
-                }
+            if (ErrorCodec.TYPE == clientMessage.getMessageType()) {
+                ErrorCodec exParameters = ErrorCodec.decode(clientMessage);
+                Throwable exception =
+                        clientExceptionFactory.createException(exParameters.errorCode, exParameters.className,
+                                exParameters.message, exParameters.stackTrace,
+                                exParameters.causeErrorCode, exParameters.causeClassName);
                 future.notifyException(exception);
             } else {
                 future.notify(clientMessage);

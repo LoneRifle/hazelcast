@@ -27,7 +27,7 @@ import static com.hazelcast.util.Preconditions.checkBackupCount;
 import static com.hazelcast.util.Preconditions.isNotNull;
 
 /**
- * Simple configuration to hold parsed xml configuration.
+ * Simple configuration to hold parsed XML configuration.
  * CacheConfig depends on the JCache API. If the JCache API is not in the classpath,
  * you can use CacheSimpleConfig as a communicator between the code and CacheConfig.
  */
@@ -78,13 +78,17 @@ public class CacheSimpleConfig {
     private int asyncBackupCount = MIN_BACKUP_COUNT;
     private int backupCount = DEFAULT_BACKUP_COUNT;
     private InMemoryFormat inMemoryFormat = DEFAULT_IN_MEMORY_FORMAT;
-    // Default value of eviction config is
-    //      * ENTRY_COUNT with 10.000 max entry count
-    //      * LRU as eviction policy
+    // Default values of the eviction configuration are:
+    //      * ENTRY_COUNT with 10.000 as the max-size policy.
+    //      * LRU as the eviction-policy.
     private EvictionConfig evictionConfig = new EvictionConfig();
     private WanReplicationRef wanReplicationRef;
 
     private CacheSimpleConfig readOnly;
+
+    private String quorumName;
+
+    private List<CachePartitionLostListenerConfig> partitionLostListenerConfigs;
 
     public CacheSimpleConfig(CacheSimpleConfig cacheSimpleConfig) {
         this.name = cacheSimpleConfig.name;
@@ -106,6 +110,9 @@ public class CacheSimpleConfig {
             this.evictionConfig = cacheSimpleConfig.evictionConfig;
         }
         this.wanReplicationRef = cacheSimpleConfig.wanReplicationRef;
+        this.partitionLostListenerConfigs =
+                new ArrayList<CachePartitionLostListenerConfig>(cacheSimpleConfig.getPartitionLostListenerConfigs());
+        this.quorumName = cacheSimpleConfig.quorumName;
     }
 
     public CacheSimpleConfig() {
@@ -144,7 +151,7 @@ public class CacheSimpleConfig {
     }
 
     /**
-     * Get the key type for this {@link com.hazelcast.cache.ICache}.
+     * Gets the key type for this {@link com.hazelcast.cache.ICache}.
      *
      * @return The key type.
      */
@@ -164,7 +171,7 @@ public class CacheSimpleConfig {
     }
 
     /**
-     * Get the value type for this {@link com.hazelcast.cache.ICache}.
+     * Gets the value type for this {@link com.hazelcast.cache.ICache}.
      *
      * @return The value type for this {@link com.hazelcast.cache.ICache}.
      */
@@ -462,21 +469,75 @@ public class CacheSimpleConfig {
     }
 
     /**
-     * Gets the Wan target replication reference.
+     * Gets the WAN target replication reference.
      *
-     * @return The Wan target replication reference.
+     * @return The WAN target replication reference.
      */
     public WanReplicationRef getWanReplicationRef() {
         return wanReplicationRef;
     }
 
     /**
-     * Sets the Wan target replication reference.
+     * Sets the WAN target replication reference.
      *
-     * @param wanReplicationRef the Wan target replication reference.
+     * @param wanReplicationRef the WAN target replication reference.
      */
     public void setWanReplicationRef(WanReplicationRef wanReplicationRef) {
         this.wanReplicationRef = wanReplicationRef;
+    }
+
+    /**
+     * Gets name of the associated quorum if any.
+     *
+     * @return
+     */
+    public String getQuorumName() {
+        return quorumName;
+    }
+
+    /**
+     * Associates this cache configuration to a quorum.
+     *
+     * @param quorumName name of the desired quorum.
+     *
+     * @return the updated CacheSimpleConfig.
+     */
+    public CacheSimpleConfig setQuorumName(String quorumName) {
+        this.quorumName = quorumName;
+        return this;
+    }
+
+    /**
+     * Gets the partition lost listener references added to cache configuration.
+     *
+     * @return List of CachePartitionLostListenerConfig.
+     */
+    public List<CachePartitionLostListenerConfig> getPartitionLostListenerConfigs() {
+        if (partitionLostListenerConfigs == null) {
+            partitionLostListenerConfigs = new ArrayList<CachePartitionLostListenerConfig>();
+        }
+        return partitionLostListenerConfigs;
+    }
+
+    /**
+     * Sets the PartitionLostListenerConfigs.
+     *
+     * @param partitionLostListenerConfigs CachePartitionLostListenerConfig list.
+     */
+    public CacheSimpleConfig setPartitionLostListenerConfigs(
+            List<CachePartitionLostListenerConfig> partitionLostListenerConfigs) {
+        this.partitionLostListenerConfigs = partitionLostListenerConfigs;
+        return this;
+    }
+
+    /**
+     * Adds the CachePartitionLostListenerConfig to partitionLostListenerConfigs.
+     *
+     * @param listenerConfig CachePartitionLostListenerConfig to be added.
+     */
+    public CacheSimpleConfig addCachePartitionLostListenerConfig(CachePartitionLostListenerConfig listenerConfig) {
+        getPartitionLostListenerConfigs().add(listenerConfig);
+        return this;
     }
 
     /**

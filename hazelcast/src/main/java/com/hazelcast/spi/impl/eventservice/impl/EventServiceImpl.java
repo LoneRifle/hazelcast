@@ -27,7 +27,7 @@ import com.hazelcast.nio.Address;
 import com.hazelcast.nio.Connection;
 import com.hazelcast.nio.Packet;
 import com.hazelcast.nio.serialization.Data;
-import com.hazelcast.nio.serialization.SerializationService;
+import com.hazelcast.internal.serialization.SerializationService;
 import com.hazelcast.spi.EventFilter;
 import com.hazelcast.spi.EventRegistration;
 import com.hazelcast.spi.EventService;
@@ -382,7 +382,7 @@ public class EventServiceImpl implements InternalEventService {
             Packet packet = new Packet(serializationService.toBytes(eventPacket), orderKey);
             packet.setHeader(Packet.HEADER_EVENT);
 
-            if (!nodeEngine.getPacketTransceiver().transmit(packet, subscriber)) {
+            if (!nodeEngine.getNode().getConnectionManager().transmit(packet, subscriber)) {
                 if (nodeEngine.isActive()) {
                     logFailure("IO Queue overloaded! Failed to send event packet to: %s", subscriber);
                 }

@@ -17,6 +17,7 @@
 package com.hazelcast.hibernate.serialization;
 
 import com.hazelcast.test.HazelcastSerialClassRunner;
+import com.hazelcast.test.annotation.ParallelTest;
 import com.hazelcast.test.annotation.QuickTest;
 import com.hazelcast.util.FilteringClassLoader;
 import org.hibernate.cache.CacheKey;
@@ -34,7 +35,7 @@ import java.util.concurrent.ConcurrentMap;
 import static org.junit.Assert.assertFalse;
 
 @RunWith(HazelcastSerialClassRunner.class)
-@Category(QuickTest.class)
+@Category({QuickTest.class, ParallelTest.class})
 public class HibernateSerializationHookNonAvailableTest {
 
     private static final Field ORIGINAL;
@@ -57,7 +58,7 @@ public class HibernateSerializationHookNonAvailableTest {
             ORIGINAL = hazelcastInstanceProxyClass.getDeclaredField("original");
             ORIGINAL.setAccessible(true);
 
-            String serializationServiceImplClassName = "com.hazelcast.nio.serialization.impl.SerializationServiceImpl";
+            String serializationServiceImplClassName = "com.hazelcast.internal.serialization.impl.SerializationServiceImpl";
             Class<?> serializationServiceImplClass = FILTERING_CLASS_LOADER.loadClass(serializationServiceImplClassName);
             TYPE_MAP = serializationServiceImplClass.getDeclaredField("typeMap");
             TYPE_MAP.setAccessible(true);

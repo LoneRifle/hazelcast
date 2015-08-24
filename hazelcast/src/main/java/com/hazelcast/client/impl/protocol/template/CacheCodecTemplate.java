@@ -21,6 +21,7 @@ import com.hazelcast.annotation.Nullable;
 import com.hazelcast.annotation.Request;
 import com.hazelcast.client.impl.protocol.EventMessageConst;
 import com.hazelcast.client.impl.protocol.ResponseMessageConst;
+import com.hazelcast.nio.Address;
 import com.hazelcast.nio.serialization.Data;
 
 import java.util.List;
@@ -76,13 +77,13 @@ public interface CacheCodecTemplate {
     void iterate(String name, int partitionId, int tableIndex, int batch);
 
     @Request(id = 16, retryable = false, response = ResponseMessageConst.VOID)
-    void listenerRegistration(String name, Data listenerConfig, boolean register, String hostname, int port);
+    void listenerRegistration(String name, Data listenerConfig, boolean register, Address address);
 
     @Request(id = 17, retryable = false, response = ResponseMessageConst.VOID)
     void loadAll(String name, Set<Data> keys, boolean replaceExistingValues);
 
     @Request(id = 18, retryable = true, response = ResponseMessageConst.DATA)
-    void managementConfig(String name, boolean isStat, boolean enabled, String hostname, int port);
+    void managementConfig(String name, boolean isStat, boolean enabled, Address address);
 
     @Request(id = 19, retryable = false, response = ResponseMessageConst.BOOLEAN)
     void putIfAbsent(String name, Data key, Data value, @Nullable Data expiryPolicy, int completionId);
@@ -96,7 +97,7 @@ public interface CacheCodecTemplate {
     @Request(id = 22, retryable = false, response = ResponseMessageConst.BOOLEAN)
     void removeInvalidationListener(String name, String registrationId);
 
-    @Request(id = 23, retryable = false, response = ResponseMessageConst.DATA)
+    @Request(id = 23, retryable = false, response = ResponseMessageConst.BOOLEAN)
     void remove(String name, Data key, @Nullable Data currentValue, int completionId);
 
     @Request(id = 24, retryable = false, response = ResponseMessageConst.DATA)
@@ -104,5 +105,12 @@ public interface CacheCodecTemplate {
 
     @Request(id = 25, retryable = true, response = ResponseMessageConst.INTEGER)
     void size(String name);
+
+    @Request(id = 26, retryable = true, response = ResponseMessageConst.STRING,
+            event = EventMessageConst.EVENT_CACHEPARTITIONLOST)
+    void addPartitionLostListener(String name);
+
+    @Request(id = 27, retryable = false, response = ResponseMessageConst.BOOLEAN)
+    void removePartitionLostListener(String name, String registrationId);
 
 }

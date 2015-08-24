@@ -21,16 +21,14 @@ import com.hazelcast.internal.metrics.Probe;
 import com.hazelcast.nio.Packet;
 import com.hazelcast.nio.SocketWritable;
 import com.hazelcast.nio.ascii.SocketTextWriter;
-import com.hazelcast.nio.tcp.ClientPacketSocketWriter;
 import com.hazelcast.nio.tcp.ClientMessageSocketWriter;
+import com.hazelcast.nio.tcp.ClientPacketSocketWriter;
 import com.hazelcast.nio.tcp.MemberPacketSocketWriter;
 import com.hazelcast.nio.tcp.SocketWriter;
 import com.hazelcast.nio.tcp.TcpIpConnection;
 import com.hazelcast.nio.tcp.WriteHandler;
-import com.hazelcast.util.Clock;
 import com.hazelcast.util.EmptyStatement;
 import com.hazelcast.util.counters.SwCounter;
-import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 
 import java.io.IOException;
 import java.net.SocketException;
@@ -47,6 +45,7 @@ import static com.hazelcast.nio.IOService.KILO_BYTE;
 import static com.hazelcast.nio.Protocols.CLIENT_BINARY;
 import static com.hazelcast.nio.Protocols.CLIENT_BINARY_NEW;
 import static com.hazelcast.nio.Protocols.CLUSTER;
+import static com.hazelcast.util.Clock.currentTimeMillis;
 import static com.hazelcast.util.StringUtil.stringToBytes;
 import static com.hazelcast.util.counters.SwCounter.newSwCounter;
 
@@ -69,16 +68,15 @@ public final class NonBlockingWriteHandler extends AbstractSelectionHandler impl
     private final SwCounter normalPacketsWritten = newSwCounter();
     @Probe(name = "out.priorityPacketsWritten")
     private final SwCounter priorityPacketsWritten = newSwCounter();
-    @Probe(name = "out.exceptionCount")
-    private final SwCounter exceptionCount = newSwCounter();
     private final MetricsRegistry metricsRegistry;
 
     private volatile SocketWritable currentPacket;
     private SocketWriter socketWriter;
     private volatile long lastWriteTime;
-    //This field will be incremented by a single thread. It can be read by multiple threads.
     @Probe(name = "out.eventCount")
-    private volatile long eventCount;
+    //This field will be incremented by a single thread. It can be read by multiple threads.
+    private final SwCounter eventCount = newSwCounter();
+
     private boolean shutdown;
     // this field will be accessed by the NonBlockingIOThread or
     // it is accessed by any other thread but only that thread managed to cas the scheduled flag to true.
@@ -319,16 +317,15 @@ public final class NonBlockingWriteHandler extends AbstractSelectionHandler impl
 
     @Override
     public long getEventCount() {
-        return eventCount;
+        return eventCount.get();
     }
 
     @Override
     @SuppressWarnings("unchecked")
-    @SuppressFBWarnings(value = "VO_VOLATILE_INCREMENT",
-            justification = "eventCount is accessed by a single thread only.")
-    public void handle() {
-        eventCount++;
-        lastWriteTime = Clock.currentTimeMillis();
+    public void handle() throws Exception {
+        eventCount.inc();
+        lastWriteTime = currentTimeMillis();
+
         if (shutdown) {
             return;
         }
@@ -338,24 +335,23 @@ public final class NonBlockingWriteHandler extends AbstractSelectionHandler impl
             createWriter(CLUSTER);
         }
 
-        try {
-            fillOutputBuffer();
+        fillOutputBuffer();
 
-            if (dirtyOutputBuffer()) {
-                writeOutputBufferToSocket();
-            }
-        } catch (Throwable t) {
-            exceptionCount.inc();
-            logger.severe("Fatal Error at WriteHandler for endPoint: " + connection.getEndPoint(), t);
+        if (dirtyOutputBuffer()) {
+            writeOutputBufferToSocket();
         }
 
         if (newOwner == null) {
             unschedule();
         } else {
-            NonBlockingIOThread newOwner = this.newOwner;
-            this.newOwner = null;
-            startMigration(newOwner);
+            startMigration();
         }
+    }
+
+    private void startMigration() {
+        NonBlockingIOThread newOwner = this.newOwner;
+        this.newOwner = null;
+        startMigration(newOwner);
     }
 
     /**
@@ -375,23 +371,18 @@ public final class NonBlockingWriteHandler extends AbstractSelectionHandler impl
     private void writeOutputBufferToSocket() throws Exception {
         // So there is data for writing, so lets prepare the buffer for writing and then write it to the socketChannel.
         outputBuffer.flip();
-        try {
-            int result = socketChannel.write(outputBuffer);
-            this.bytesWritten.inc(result);
-        } catch (Exception e) {
-            currentPacket = null;
-            handleSocketException(e);
-            return;
-        }
+        int written = socketChannel.write(outputBuffer);
+
+        bytesWritten.inc(written);
+
         // Now we verify if all data is written.
-        if (!outputBuffer.hasRemaining()) {
+        if (outputBuffer.hasRemaining()) {
+            // We did not manage to write all data to the socket. So lets compact the buffer so new data can be added at the end.
+            outputBuffer.compact();
+        } else {
             // We managed to fully write the outputBuffer to the socket, so we are done.
             outputBuffer.clear();
-            return;
         }
-        // We did not manage to write all data to the socket. So lets compact the buffer so new data
-        // can be added at the end.
-        outputBuffer.compact();
     }
 
     /**

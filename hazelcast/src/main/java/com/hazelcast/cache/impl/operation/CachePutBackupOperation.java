@@ -24,6 +24,7 @@ import com.hazelcast.nio.ObjectDataInput;
 import com.hazelcast.nio.ObjectDataOutput;
 import com.hazelcast.nio.serialization.Data;
 import com.hazelcast.spi.BackupOperation;
+import com.hazelcast.spi.impl.MutatingOperation;
 
 import java.io.IOException;
 
@@ -37,7 +38,7 @@ import java.io.IOException;
  */
 public class CachePutBackupOperation
         extends AbstractCacheOperation
-        implements BackupOperation {
+        implements BackupOperation, MutatingOperation {
 
     private CacheRecord cacheRecord;
 
@@ -53,7 +54,7 @@ public class CachePutBackupOperation
     public void run()
             throws Exception {
         CacheService service = getService();
-        ICacheRecordStore cache = service.getOrCreateCache(name, getPartitionId());
+        ICacheRecordStore cache = service.getOrCreateRecordStore(name, getPartitionId());
         cache.putRecord(key, cacheRecord);
         response = Boolean.TRUE;
     }

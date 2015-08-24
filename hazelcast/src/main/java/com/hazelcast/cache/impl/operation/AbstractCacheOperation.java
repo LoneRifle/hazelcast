@@ -65,7 +65,7 @@ abstract class AbstractCacheOperation
     public final void beforeRun()
             throws Exception {
         AbstractCacheService service = getService();
-        cache = service.getOrCreateCache(name, getPartitionId());
+        cache = service.getOrCreateRecordStore(name, getPartitionId());
     }
 
     @Override
@@ -74,7 +74,7 @@ abstract class AbstractCacheOperation
     }
 
     @Override
-    public ExceptionAction onException(Throwable throwable) {
+    public ExceptionAction onInvocationException(Throwable throwable) {
         if (throwable instanceof CacheNotExistsException) {
             ICacheService cacheService = getService();
             if (cacheService.getCacheConfig(name) != null) {
@@ -82,7 +82,7 @@ abstract class AbstractCacheOperation
                 return ExceptionAction.RETRY_INVOCATION;
             }
         }
-        return super.onException(throwable);
+        return super.onInvocationException(throwable);
     }
 
     @Override
