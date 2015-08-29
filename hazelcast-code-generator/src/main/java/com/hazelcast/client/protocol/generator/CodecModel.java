@@ -24,6 +24,7 @@ import com.hazelcast.annotation.Request;
 import javax.lang.model.element.ExecutableElement;
 import javax.lang.model.element.TypeElement;
 import javax.lang.model.element.VariableElement;
+import javax.lang.model.util.Elements;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedList;
@@ -35,6 +36,7 @@ public class CodecModel implements Model{
     static final Map<String, TypeElement> CUSTOM_CODEC_MAP = new HashMap<String, TypeElement>();
 
     private final Lang lang;
+    private short requestId;
     private String id;
     private String name;
     private String className;
@@ -44,6 +46,8 @@ public class CodecModel implements Model{
 
     private int retryable;
     private int response;
+
+    private Elements elementUtil;
 
     private final List<ParameterModel> requestParams = new LinkedList();
     private final List<ParameterModel> responseParams = new LinkedList();
@@ -145,14 +149,14 @@ public class CodecModel implements Model{
     }
 
     public CodecModel(TypeElement parent, ExecutableElement methodElement, ExecutableElement responseElement,
-                      List<ExecutableElement> eventElementList, boolean retryable, Lang lang) {
+                      List<ExecutableElement> eventElementList, boolean retryable, Lang lang, Elements docCommentUtil) {
         this.retryable = retryable ? 1 : 0;
         this.lang = lang;
 
         name = methodElement.getSimpleName().toString();
-        short requestId = methodElement.getAnnotation(Request.class).id();
+        requestId = methodElement.getAnnotation(Request.class).id();
         short masterId = parent.getAnnotation(GenerateCodec.class).id();
-        id = CodeGenerationUtils.mergeIds(masterId, requestId);
+        id = CodeGenerationUtils.addHexPrefix(CodeGenerationUtils.mergeIds(masterId, requestId));
         parentName = parent.getAnnotation(GenerateCodec.class).name();
         className =
                 CodeGenerationUtils.capitalizeFirstLetter(parentName) + CodeGenerationUtils.capitalizeFirstLetter(name) + "Codec";
@@ -163,6 +167,9 @@ public class CodecModel implements Model{
         }
 
         response = methodElement.getAnnotation(Request.class).response();
+
+        elementUtil = docCommentUtil;
+
         initParameters(methodElement, responseElement, eventElementList, lang);
     }
 
@@ -193,6 +200,9 @@ public class CodecModel implements Model{
 
         //event parameters
         for (ExecutableElement element : eventElementList) {
+            EventModel eventModel = new EventModel();
+            eventModel.comment = elementUtil.getDocComment(element);
+
             List<ParameterModel> eventParam = new ArrayList<ParameterModel>();
             for (VariableElement param : element.getParameters()) {
                 final Nullable nullable = param.getAnnotation(Nullable.class);
@@ -201,10 +211,10 @@ public class CodecModel implements Model{
                 pm.type = param.asType().toString();
                 pm.lang = lang;
                 pm.nullable = nullable != null;
+                pm.description = CodeGenerationUtils.getDescription(pm.name, eventModel.comment);
                 eventParam.add(pm);
             }
 
-            EventModel eventModel = new EventModel();
             eventModel.type = element.getAnnotation(EventResponse.class).value();
             eventModel.name = element.getSimpleName().toString();
             eventModel.eventParams = eventParam;
@@ -219,6 +229,10 @@ public class CodecModel implements Model{
 
     public Lang getLang() {
         return lang;
+    }
+
+    public short getRequestId() {
+        return requestId;
     }
 
     public String getId() {
@@ -274,6 +288,7 @@ public class CodecModel implements Model{
         private String name;
         private List<ParameterModel> eventParams;
         private int type;
+        String comment = "";
 
         public int getType() {
             return type;
@@ -286,6 +301,10 @@ public class CodecModel implements Model{
         public List<ParameterModel> getEventParams() {
             return eventParams;
         }
+
+        public String getComment() {
+            return comment;
+        }
     }
 
     public static class ParameterModel {
@@ -293,6 +312,7 @@ public class CodecModel implements Model{
         private String type;
         private Lang lang;
         private boolean nullable;
+        private String description = "";
 
         public String getName() {
             return name;
@@ -310,5 +330,8 @@ public class CodecModel implements Model{
             return lang;
         }
 
+        public String getDescription() {
+            return description;
+        }
     }
 }

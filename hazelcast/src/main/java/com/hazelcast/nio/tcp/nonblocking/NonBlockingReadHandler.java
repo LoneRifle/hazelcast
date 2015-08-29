@@ -26,6 +26,7 @@ import com.hazelcast.nio.tcp.PacketSocketReader;
 import com.hazelcast.nio.tcp.ReadHandler;
 import com.hazelcast.nio.tcp.SocketReader;
 import com.hazelcast.nio.tcp.TcpIpConnection;
+import com.hazelcast.nio.tcp.WriteHandler;
 import com.hazelcast.util.counters.Counter;
 import com.hazelcast.util.counters.SwCounter;
 
@@ -49,8 +50,8 @@ import static com.hazelcast.util.counters.SwCounter.newSwCounter;
  */
 public final class NonBlockingReadHandler extends AbstractSelectionHandler implements ReadHandler {
 
-    private ByteBuffer inputBuffer;
-
+    @Probe(name = "in.eventCount")
+    private final SwCounter eventCount = newSwCounter();
     @Probe(name = "in.bytesRead")
     private final SwCounter bytesRead = newSwCounter();
     @Probe(name = "in.normalPacketsRead")
@@ -60,12 +61,8 @@ public final class NonBlockingReadHandler extends AbstractSelectionHandler imple
     private final MetricsRegistry metricRegistry;
 
     private SocketReader socketReader;
-
+    private ByteBuffer inputBuffer;
     private volatile long lastReadTime;
-
-    //This field will be incremented by a single thread. It can be read by multiple threads.
-    @Probe(name = "in.eventCount")
-    private final SwCounter eventCount = newSwCounter();
 
     public NonBlockingReadHandler(
             TcpIpConnection connection,
@@ -73,7 +70,6 @@ public final class NonBlockingReadHandler extends AbstractSelectionHandler imple
             MetricsRegistry metricsRegistry) {
         super(connection, ioThread, SelectionKey.OP_READ);
         this.ioThread = ioThread;
-
         this.metricRegistry = metricsRegistry;
         metricRegistry.scanAndRegister(this, "tcp.connection[" + connection.getMetricsId() + "]");
     }
@@ -106,7 +102,7 @@ public final class NonBlockingReadHandler extends AbstractSelectionHandler imple
     }
 
     @Override
-    public long getLastReadTime() {
+    public long getLastReadTimeMillis() {
         return lastReadTime;
     }
 
@@ -197,7 +193,7 @@ public final class NonBlockingReadHandler extends AbstractSelectionHandler imple
 
         if (!protocolBuffer.hasRemaining()) {
             String protocol = bytesToString(protocolBuffer.array());
-            NonBlockingWriteHandler writeHandler = (NonBlockingWriteHandler) connection.getWriteHandler();
+            WriteHandler writeHandler = connection.getWriteHandler();
             if (CLUSTER.equals(protocol)) {
                 configureBuffers(ioService.getSocketReceiveBufferSize() * KILO_BYTE);
                 connection.setType(MEMBER);

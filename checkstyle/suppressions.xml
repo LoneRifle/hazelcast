@@ -152,7 +152,6 @@
     <suppress checks="" files="com/hazelcast/client/proxy/ClientMultiMapProxy"/>
     <suppress checks="" files="com/hazelcast/client/proxy/ClientMapProxy"/>
     <suppress checks="MethodCount" files="com/hazelcast/client/proxy/ClientReplicatedMapProxy"/>
-    <suppress checks="" files="com/hazelcast/client/HazelcastClient"/>
     <suppress checks="" files="com/hazelcast/client/impl/HazelcastClientInstance"/>
     <suppress checks="" files="com/hazelcast/client/impl/HazelcastClientProxy"/>
     <suppress checks="ClassDataAbstractionCoupling" files="com/hazelcast/client/proxy/ClientExecutorServiceProxy"/>
@@ -374,6 +373,7 @@
     <suppress checks="MethodCount" files="com/hazelcast/nio/Bits"/>
     <suppress checks="ExecutableStatementCount|ClassDataAbstractionCoupling|ClassFanOutComplexity"
               files="com/hazelcast/nio/tcp/TcpIpConnectionManager"/>
+    <suppress checks="NPathComplexity" files="com/hazelcast/nio/tcp/spinning/SpinningReadHandler"/>
     <suppress checks="MethodCount|MagicNumber" files="com/hazelcast/internal/serialization/impl/ByteArrayObjectDataInput"/>
     <suppress checks="MethodCount|MagicNumber" files="com/hazelcast/internal/serialization/impl/ByteArrayObjectDataOutput"/>
     <suppress checks="MethodCount|MagicNumber" files="com/hazelcast/internal/serialization/impl/ByteBufferObjectDataInput"/>
@@ -463,7 +463,7 @@
     <suppress checks="" files="com/hazelcast/util/Base64"/>
     <suppress checks="" files="com/hazelcast/util/DebugUtil"/>
     <suppress checks="" files="com/hazelcast/util/HashUtil"/>
-    <suppress checks="" files="com/hazelcast/util/scheduler/ScheduleType"/>
+    <suppress checks="JavadocType|JavadocVariable" files="com/hazelcast/util/scheduler/ScheduleType"/>
 
     <suppress checks="MagicNumber" files="com/hazelcast/util/QuickMath"/>
     <suppress checks="JavadocType" files="com/hazelcast/util/scheduler/SecondsBasedEntryTaskScheduler"/>
